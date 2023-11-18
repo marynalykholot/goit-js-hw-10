@@ -1,81 +1,105 @@
-import { fetchBreeds, fetchCatByBreed } from './cat-api';
+import axios from "axios";
+import {fetchBreeds, fetchCatByBreed} from './cat-api.js';
 import SlimSelect from 'slim-select';
-import 'slim-select/dist/slimselect.css';
+import '../node_modules/slim-select/dist/slimselect.css';
 import Notiflix from 'notiflix';
 
-const breedSelectEl = document.querySelector('.breed-select');
-const loaderEl = document.querySelector('.loader');
-const errorEl = document.querySelector('.error');
-const catInfoEl = document.querySelector('.cat-info');
-
-loaderEl.classList.add('visually-hidden');
-errorEl.classList.add('visually-hidden');
-
-let isFirstLoad = true;
-
-const displaySelect = new SlimSelect({
-  select: breedSelectEl,
+Notiflix.Notify.init({
+  position: 'right-top',
 });
 
-function wrapperFetch() {
-  loaderEl.classList.replace('visually-hidden', 'loader');
 
+const KEY_API = "live_Jj3VKlMLkFrfCdsyi6ZbxtcUSs8O40AZum6kYeTz7aD8jzyU7vkZM349m3mVw80Z"
+
+axios.defaults.headers.common["x-api-key"] = KEY_API
+
+
+const refs = {
+  breedSelect: document.querySelector(".breed-select"),
+  loader: document.querySelector(".loader"),
+  error: document.querySelector(".error"),
+  catInfo: document.querySelector('.cat-info')
+}
+
+refs.breedSelect.addEventListener("change", selectCat)
+refs.error.style.display = 'none';
+
+function fillCatList(breeds) {
+  breeds.forEach(breed => {
+    const option = document.createElement('option');
+    option.value = breed.id;
+    option.textContent = breed.name;
+    refs.breedSelect.appendChild(option);
+  });
+}
+
+function selectCat(e) {
+  const breedId = e.target.value;
+  if (breedId) {
+    refs.loader.style.display = 'block';
+    refs.catInfo.style.display = 'none';
+    fetchCat(breedId);
+  } else {
+    refs.loader.style.display = 'none';
+  }
+}
+
+function fetchCat(breedId) {
+  fetchCatByBreed(breedId)
+    .then(response => {
+      const cat = response;
+      showCat(cat);
+    })
+    .catch(error => {
+      Notiflix.Notify.failure(
+        'Ooops! Something went wrong, please try to refresh the website.'
+      );
+      return error;
+    })
+    .finally(() => {
+      refs.loader.style.display = 'none';
+    });
+}
+
+function showCat(cat) {
+  const {name, description, temperament} = cat[0].breeds[0];
+  const {url} = cat[0];
+  const catInfoHTML = `
+
+    <img class="catImg" src="${url}" alt="">
+    <div class="description">
+      <h2>${name}</h2>
+      <p> ${description}</p>
+      <p><strong>Temperament:</strong> ${temperament}</p>
+
+
+  `;
+  refs.catInfo.style.display = 'inline-flex';
+  refs.catInfo.innerHTML = catInfoHTML;
+}
+
+function initCatApp() {
+
+  refs.loader.style.display = 'block';
+  refs.loader.textContent = ''
   fetchBreeds()
     .then(breeds => {
-      const displayData = breeds.map(({ id, name }) => ({
-        text: name,
-        value: id,
-      }));
-      displaySelect.setData(displayData);
+      fillCatList(breeds);
+      let select = new SlimSelect({
+        select: refs.breedSelect,
+        settings: {
+          showOptionTooltips: true,
+        }
+      });
     })
-    .catch(anErrorOccurred)
-    .finally(() => loaderEl.classList.add('visually-hidden'));
+    .catch(error => {
+      console.error(error);
+    })
+    .finally(() => {
+      refs.loader.style.display = 'none';
+    });
 }
 
-wrapperFetch();
-
-function createCatMarkup(breeds) {
-  return breeds
-    .map(
-      ({ url, breeds: [{ description, temperament, name, origin }] }) =>
-        `<img src="${url}" class="cat-img" alt="cat" width=500/>
-        <div class="info-cat">
-          <h1>${name}</h1>
-          <p>${description}</p>
-          <p><span class="temperament">Temperament: </span>${temperament}</p>
-          <p><span class="country">Country: </span>${origin}</p>
-        </div>`
-    )
-    .join('');
-}
-
-breedSelectEl.addEventListener('change', changeCat);
-
-function changeCat(event) {
-  event.preventDefault();
-
-  catInfoEl.innerHTML = '';
-
-  let breedId = event.currentTarget.value;
-
-  if (!isFirstLoad) {
-    loaderEl.classList.replace('visually-hidden', 'loader');
-
-    fetchCatByBreed(breedId)
-      .then(breeds => {
-        const catImg = createCatMarkup(breeds);
-        catInfoEl.insertAdjacentHTML('beforeend', catImg);
-      })
-      .catch(anErrorOccurred)
-      .finally(() => loaderEl.classList.add('visually-hidden'));
-  }
-
-  isFirstLoad = false;
-}
-
-function anErrorOccurred() {
-  loaderEl.classList.add('visually-hidden');
-  Notiflix.Notify.failure(
-    'Oops! Something went wrong. Try reloading the page.'
-  );
-}
+document.addEventListener('DOMContentLoaded', () => {
+  initCatApp();
+});
